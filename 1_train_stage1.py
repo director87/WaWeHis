@@ -5,7 +5,6 @@ import importlib
 import random
 # from visdom import Visdom
 import network.resnet38_cls
-# import albumentations as A
 
 import torch
 import torchvision
@@ -19,15 +18,9 @@ from tool import pyutils, torchutils
 from tool.GenDataset import Stage1_TrainDataset
 from tool.infer_fun import infer
 from tool.loss import KDLoss, PKT, Correlation, RKDLoss, Attention, SegmentationLosses
-from core.puzzle_utils import *
-from tools.ai.torch_utils import *
+# from core.puzzle_utils import *
+# from tools.ai.torch_utils import *
 cudnn.enabled = True
-# seed = 42
-# random.seed(seed)
-# np.random.seed(seed)
-# torch.manual_seed(seed)
-# torch.cuda.manual_seed(seed)
-# torch.cuda.manual_seed_all(seed)
 
 
 class HintLoss(nn.Module):
@@ -69,8 +62,6 @@ def train_phase(args):
                                           transforms.GaussianBlur(3),
                                           transforms.RandomVerticalFlip(p=0.5),
                                           transforms.ColorJitter(brightness=0.3, contrast=0.3),
-                                          # A.ElasticTransform(alpha=1, sigma=50, alpha_affine=50),
-                                          # transforms.ElasticTransform(alpha=10.0, sigma=20.0),
                                           # Cutout(),
                                           # transforms.RandomResizedCrop(size=224, scale=(0.9, 1)),
                                           transforms.ToTensor()])
@@ -107,15 +98,12 @@ def train_phase(args):
             'avg_ep_EM',
             'avg_ep_acc')
     timer = pyutils.Timer("Session started: ")
-    # cp = network.resnet38_cls.Class_Predictor(4, 1).cuda()
-    # cp = network.resnet38_cls.Class_Predictor(3, 1).cuda()
-    # cp = network.resnet38_cls.Class_Predictor(6, 1).cuda()
-    # wave = network.resnet38_cls.Class_Predictor_wavecam(6, 1568)
+    wave = network.resnet38_cls.Class_Predictor_wavecam(6, 1568)
     # wave = network.resnet38_cls.Class_Predictor_wavecam(4, 1568)
     # wave = network.resnet38_cls.Class_Predictor_wavecam(2, 1568)
     # wave = network.resnet38_cls.Class_Predictor_wavecam(3, 1568)
     # wave = network.resnet38_cls.Class_Predictor_wavecam(2, 2048)
-    # wave = torch.nn.DataParallel(wave).cuda()
+    wave = torch.nn.DataParallel(wave).cuda()
     for ep in range(args.max_epoches):
         model.train()
         args.ep_index = ep
@@ -139,26 +127,7 @@ def train_phase(args):
                 enable_AMM = 0
                 enable_NAEA = 0
                 enable_MARS = 0
-            # x, feature, y, cam1 = model(img.cuda(), enable_PDA=0, enable_AMM=0, enable_NAEA=0, enable_MARS=0)
-            # x, feature, y, cam1 = model(img.cuda(), enable_PDA=0, enable_AMM=0, enable_NAEA=0, enable_MARS=enable_MARS)
-            x, feature, y, cam1 = model(img.cuda(), enable_PDA=enable_PDA, enable_AMM=0, enable_NAEA=0, enable_MARS=0)
-            # x, feature, y, cam1 = model(img.cuda(), enable_PDA=0, enable_AMM=enable_AMM, enable_NAEA=0, enable_MARS=0)
-            # tiled_images = tile_features(img, 4)
-            # tiled_logits, tiled_features, _, _ = model(tiled_images.cuda(), enable_PDA=0, enable_AMM=0, enable_NAEA=0, enable_MARS=0)
-            # re_features = merge_features(tiled_features, 4, args.batch_size)
-
-            # x, feature, y = model(img.cuda(), enable_PDA=0, enable_AMM=1)
-            # cam1 = model.forward_cam(img.cuda())
-            # print(cam1)
-            # print(cam1.shape)
-            # cam1 = F.upsample(cam1, (224,224), mode='bilinear', align_corners=False)[0]
-            # print(cam1.shape)
-            # x2, feature2, y2, cam2 = model(img2.cuda(), enable_PDA=0, enable_AMM=0, enable_NAEA=0, enable_MARS=0)
-            # feature2 = torchvision.transforms.RandomHorizontalFlip(p=1)(feature2)
-            # cam2 = F.upsample(cam2, (224,224), mode='bilinear', align_corners=False)[0]
-            # x_pre2 = x2
-            # cam2 = model.forward_cam(img.cuda())
-            # print(cam2)
+            x, feature, y, cam1 = model(img.cuda(), enable_PDA=0, enable_AMM=0, enable_NAEA=0, enable_MARS=0)
             prob = y.cpu().data.numpy()
             # prob2 = y2.cpu().data.numpy()
             # prob = (prob + prob2) / 2
@@ -173,51 +142,9 @@ def train_phase(args):
                 ep_acc += acc
             avg_ep_EM = round(ep_EM/ep_count, 4)
             avg_ep_acc = round(ep_acc/ep_count, 4)
-            # print(label)
-            # print(x.shape)
             loss_cls = F.multilabel_soft_margin_loss(x, label, reduction='none')
-            # loss_cls = F.binary_cross_entropy(torch.pow(torch.pow(cam1.reshape(cam1.shape[0], -1), 2).mean(dim=1).unsqueeze(1), 1 / 2), label, reduction='none')
-            # loss_wave = wave(feature, label, cam1)
-            # p_loss_cls = F.multilabel_soft_margin_loss(torch.mean(re_features.view(re_features.size(0), re_features.size(1), -1), -1), label)
-            # class_mask = label.unsqueeze(2).unsqueeze(3)
-            # re_loss = L1_Loss(feature, re_features) * class_mask
-            # re_loss = re_loss.mean()
-            # loss_re, _ = cp(x, label)
-            # print(loss_cls)
-            # print(loss_cls.mean())
-            # condition = loss_cls > (torch.max(loss_cls) - torch.min(loss_cls)) / 2
-            # weight_mask = torch.where(condition.cuda(), loss_cls, torch.tensor(0.0).cuda())
-            # weight_mask = weight_mask.float() / 255
-            # # print(weight_mask)
-            # uncertain_mask = weight_mask >= 0.005
-            # weight_mask[uncertain_mask == 1] = 0.1
-            # weight_mask[uncertain_mask == 0] = 1
-            # loss_cls = loss_cls * weight_mask
-            # print(loss_cls)
-            # loss_cls2 = F.multilabel_soft_margin_loss(x2, label, reduction='none')
-            # loss_kd = KDLoss(T=10)(cam1, cam2)
-            # uncertain = (torch.max(cam1) - torch.max(cam2)) / 20
-            # if uncertain < 0:
-            #     weight = 0.75
-            # else:
-            #     weight = 0.25
-            # print(cam1.shape, cam2.shape)
-            # print(uncertain)
-            # weight = 1 - uncertain
-            # loss_ht = HintLoss()(cam1, cam2)
-            # loss_pkt = KDLoss(T=10)(feature, feature2)
-            # loss_rkd = Attention()(cam1, cam2)
-            # print(loss_pkt)
-            # loss_cps = torch.mean(torch.abs(cam1 - cam2))
-            # print(cams.shape)
-            # loss = 0.5 * loss_cls.mean() + 0.5 * loss_cls2.mean() + 0.01 * loss_pkt
-            # loss = 1 * loss_cls.mean() + 0.05 * loss_pkt
-            # loss = weight * loss_cls.mean() + (1-weight) * loss_cls2.mean() + 1 * loss_pkt
-            # loss = loss_cls.mean() + 0.1 * re_loss + 0.1 * p_loss_cls
-            loss = loss_cls.mean()
-            # loss = loss_cls.mean() + 0.2*loss_re
-            # loss = loss_cls.mean() + 0.1*loss_wave
-            # print(loss)
+            loss_wave = wave(feature, label, cam1)
+            loss = loss_cls.mean() + 0.1*loss_wave
             avg_meter.add({'loss':loss.item(),
                             'avg_ep_EM':avg_ep_EM,
                             'avg_ep_acc':avg_ep_acc,
@@ -249,14 +176,12 @@ def test_phase(args):
     model = getattr(importlib.import_module(args.network), 'Net_CAM')(n_class=args.n_class)
     model = model.cuda()
     args.weights = os.path.join(args.save_folder, 'stage1_checkpoint_trained_on_'+args.dataset+'_'+args.model_name+'.pth')
-    # args.weights = os.path.join(args.save_folder, 'stage1_checkpoint_trained_on_'+args.dataset+'.pth')
     weights_dict = torch.load(args.weights)
     model.load_state_dict(weights_dict, strict=False)
     model.eval()
     score = infer(model, args.testroot, args.n_class)
     print(score)
     torch.save(model.state_dict(), os.path.join(args.save_folder, 'stage1_checkpoint_trained_on_'+args.dataset+'_'+args.model_name+'.pth'))
-    # torch.save(model.state_dict(), os.path.join(args.save_folder, 'stage1_checkpoint_trained_on_'+args.dataset+'.pth'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -271,18 +196,14 @@ if __name__ == '__main__':
     parser.add_argument("--model_name", default='res38d_wavecam', type=str)
     parser.add_argument("--n_class", default=6, type=int)
     parser.add_argument("--weights", default='E:/code/WSSS-Tissue-main/WSSS-Tissue-main/init_weights/ilsvrc-cls_rna-a1_cls1000_ep-0001.params', type=str)
-    # parser.add_argument("--weights", default='checkpoints/stage1_checkpoint_trained_on_bcss_res38d.pth', type=str)
     parser.add_argument("--trainroot", default='E:/code/WSSS-Tissue-main/WSSS-Tissue-main/datasets/GCSS/train/', type=str)
-    parser.add_argument("--testroot", default='E:/code/WSSS-Tissue-main/WSSS-Tissue-main/datasets/GCSS/val/', type=str)
-    # parser.add_argument("--trainroot", default=r'D:\Code\WSSS-Tissue-main\WSSS-Tissue-main\datasets\ZJ_V5\train_weak', type=str)
-    # parser.add_argument("--testroot", default=r'D:\Code\WSSS-Tissue-main\WSSS-Tissue-main\datasets\ZJ_V5\test', type=str)
+    parser.add_argument("--testroot", default='E:/code/WSSS-Tissue-main/WSSS-Tissue-main/datasets/GCSS/test/', type=str)
     parser.add_argument("--save_folder", default='E:/code/WSSS-Tissue-main/WSSS-Tissue-main/checkpoints/',  type=str)
     parser.add_argument("--init_gama", default=1, type=float)
     parser.add_argument("--dataset", default='gcss', type=str)
     args = parser.parse_args()
-    # print(torch.cuda.memory_allocated())
-    # print(torch.cuda.memory_reserved())
     torch.cuda.empty_cache()
 
-    # train_phase(args)
+    train_phase(args)
     test_phase(args)
+
