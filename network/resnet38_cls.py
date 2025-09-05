@@ -6,13 +6,6 @@ from tool import infer_utils
 import network.resnet38d
 
 from tool.ADL_module import Attention_Module
-from tool.ADL_module2 import Attention_Module2
-from tool.ADL_module3 import Attention_Module3
-from tool.amm import AMM, SCA
-from tool.cca import CrissCrossAttention
-from tool.MARS import MARS
-from tool.tripleattention import TripletAttention
-from tool.aaf import AAF
 from tool.wavecam import WaveModeling
 
 def soft_pool2d(x, kernel_size=2, stride=None, force_inplace=False):
@@ -42,39 +35,19 @@ class Net(network.resnet38d.Net):
         
         self.dropout7 = torch.nn.Dropout2d(0.5)
         self.Attention_Module = Attention_Module()
-        self.Attention_Module2 = Attention_Module2()
-        self.Attention_Module3 = Attention_Module3()
         self.gama = gama
-        self.amm = AMM(4096, 16)
-        self.sca = SCA(4096, 4)
-        # self.sca = SCA(5632, 4)
-        self.cca = CrissCrossAttention(4096)
-        self.mars = MARS(4096, 4096)
-        self.trp = TripletAttention(4096, 4)
-        # self.trp = TripletAttention(5632, 4)
-        # self.aaf = AAF(4096)
 
         self.fc8 = nn.Conv2d(4096, n_class, 1, bias=False)
         # self.fc8 = nn.Conv2d(5632, n_class, 1, bias=False)
         self.f8_3 = torch.nn.Conv2d(512, 64, 1, bias=False)
         self.f8_4 = torch.nn.Conv2d(1024, 128, 1, bias=False)
         self.f9 = torch.nn.Conv2d(192 + 3, 192, 1, bias=False)
-
-        self.gconv1 = gconv(n_class, n_class)
-        self.gconv2 = gconv(n_class, n_class)
-        self.gconv3 = gconv(n_class, n_class)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.dropout = nn.Dropout2d(0.3)
-        self.pam = PAM_Module(4096)
-
         torch.nn.init.xavier_uniform_(self.fc8.weight)
         torch.nn.init.kaiming_normal_(self.f8_3.weight)
         torch.nn.init.kaiming_normal_(self.f8_4.weight)
         torch.nn.init.xavier_uniform_(self.f9.weight, gain=4)
 
-
         self.not_training = [self.conv1a, self.b2, self.b2_1, self.b2_2]
-        # self.from_scratch_layers = [self.fc8]
         self.from_scratch_layers = [self.f8_3, self.f8_4, self.f9, self.fc8]
 
 
@@ -120,49 +93,19 @@ class Net(network.resnet38d.Net):
 
         x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)), padding=0)  #[8,4096,1,1]
         # x2 = F.max_pool2d(x, kernel_size=(x.size(2), x.size(3)), padding=0)  #[8,4096,1,1]
-        # x = 0.9 * x1 + 0.1 * x2
-        # print(x)
-
         feature = x
         # cams = F.conv2d(feature, self.fc8.weight)
         # cams = F.relu(cams)
         feature = feature.view(feature.size(0), -1)#[8,4096]
-
-        # cams = F.conv2d(x, self.fc8.weight)
-        # gap_2 = F.interpolate(F.adaptive_avg_pool2d(cams, (2, 2)), size=cams.size()[2:], mode='bilinear', align_corners=False)
-        # gap_4 = F.interpolate(F.adaptive_avg_pool2d(cams, (4, 4)), size=cams.size()[2:], mode='bilinear', align_corners=False)
-        # gap_8 = F.interpolate(F.adaptive_avg_pool2d(cams, (8, 8)), size=cams.size()[2:], mode='bilinear', align_corners=False)
-        # gap_16 = F.interpolate(F.adaptive_avg_pool2d(cams, (16, 16)), size=cams.size()[2:], mode='bilinear', align_corners=False)
-        # # print(gap_2.shape)
-        #
-        # att1 = self.gconv1(gap_2, gap_4)
-        # att2 = self.gconv2(att1, gap_8)
-        # gpp = self.gconv3(att2, gap_16)
-        # #
-        # outs = self.avgpool(F.relu(cams) * F.relu(gpp)).squeeze(3).squeeze(2)
-        # outs -= self.avgpool(F.relu(-cams) * F.relu(-gpp)).squeeze(3).squeeze(2)
-        # # print(outs.shape)
-        #
-        # # x = (gap_2 + gap_4 + gap_8 + gap_16) / 4
-        # x = gpp
-        # x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)), padding=0)  # [8,4096,1,1]
-
-
         x = self.fc8(x)
-        # print(x.shape)
-        # cams = x
         ############## WaveCAM ###########
-        # cams = F.conv2d(x2, self.fc8.weight)
-        # cams = F.relu(cams)
-        # cams = cams / (F.adaptive_max_pool2d(cams, (1, 1)) + 1e-5)
-        # feature = cams.unsqueeze(2) * x2.unsqueeze(1)  # bs*20*2048*32*32
-        # feature = feature.view(feature.size(0), feature.size(1), feature.size(2), -1)
-        # feature = torch.mean(feature, -1)
+        cams = F.conv2d(x2, self.fc8.weight)
+        cams = F.relu(cams)
+        cams = cams / (F.adaptive_max_pool2d(cams, (1, 1)) + 1e-5)
+        feature = cams.unsqueeze(2) * x2.unsqueeze(1)  # bs*20*2048*32*32
+        feature = feature.view(feature.size(0), feature.size(1), feature.size(2), -1)
+        feature = torch.mean(feature, -1)
         ############# WaveCAM ############
-        # ------PuzzleCAM---------
-        # feature = torch.mean(x.view(x.size(0), x.size(1), -1), -1)
-        # feature = feature.view(x.size(0), x.size(1), 1, 1)
-        # ------PuzzleCAM---------
         x = x.view(x.size(0), -1)
         y = torch.sigmoid(x)
         
@@ -291,56 +234,7 @@ class Class_Predictor(nn.Module):
 
         return loss / batch_size, acc / num
 
-class gconv(nn.Module):
-    def __init__(self, in_ch1, in_ch2):
-        super(gconv, self).__init__()
 
-        self.att_p = nn.Sequential(
-            nn.Conv2d(in_ch1 * 2, 2, 3, 1, 1, bias=False),
-            nn.Sigmoid(),
-        )
-        self.att_n = nn.Sequential(
-            nn.Conv2d(in_ch1 * 2, 2, 3, 1, 1, bias=False),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x, y):
-        n, c, h, w = y.size()
-        xy_p = torch.cat([F.relu(x), F.relu(y)], dim=1)
-        xy_n = torch.cat([F.relu(-x), F.relu(-y)], dim=1)
-        att_p = self.att_p(xy_p)
-        att_n = self.att_n(xy_n)
-        final = (F.relu(x) * att_p[:, 0].view(n, 1, h, w) + F.relu(y) * att_p[:, 1].view(n, 1, h, w)) / 2
-        final -= (F.relu(-x) * att_n[:, 0].view(n, 1, h, w) + F.relu(-y) * att_n[:, 1].view(n, 1, h, w)) / 2
-
-        return final
-
-class PAM_Module(nn.Module):
-    """空间注意力模块"""
-    def __init__(self, in_dim):
-        super(PAM_Module, self).__init__()
-        self.chanel_in = in_dim
-
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-        self.gamma = nn.Parameter(torch.zeros(1))
-        self.softmax = nn.Softmax(dim=-1)
-
-    def forward(self, x):
-        m_batchsize, C, height, width = x.size()
-        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)
-        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)
-
-        energy = torch.bmm(proj_query, proj_key)
-        attention = self.softmax(energy)
-        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)
-
-        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
-        out = out.view(m_batchsize, C, height, width)
-
-        out = self.gamma * out + x
-        return out
 
 
 class Class_Predictor_wavecam(nn.Module):
@@ -348,10 +242,10 @@ class Class_Predictor_wavecam(nn.Module):
         super(Class_Predictor_wavecam, self).__init__()
         self.num_classes = num_classes
         self.classifier = nn.Conv2d(representation_size, num_classes, 1, bias=False)
-        # self.wave = WaveModeling(6, qkv_bias=False, qk_scale=None, attn_drop=0., mode='fc')
+        self.wave = WaveModeling(6, qkv_bias=False, qk_scale=None, attn_drop=0., mode='fc')
         # self.wave = WaveModeling(4, qkv_bias=False, qk_scale=None, attn_drop=0., mode='fc')
         # self.wave = WaveModeling(3, qkv_bias=False, qk_scale=None, attn_drop=0., mode='fc')
-        self.wave = WaveModeling(2, qkv_bias=False, qk_scale=None, attn_drop=0., mode='fc')
+        # self.wave = WaveModeling(2, qkv_bias=False, qk_scale=None, attn_drop=0., mode='fc')
 
     def forward(self, x, label, cams):
 
@@ -364,10 +258,10 @@ class Class_Predictor_wavecam(nn.Module):
         feature = self.wave(cams)
         # print(feature.shape)
 
-        # feature = feature.view(batch_size, 6, -1)
+        feature = feature.view(batch_size, 6, -1)
         # feature = feature.view(batch_size, 4, -1)
         # feature = feature.view(batch_size, 3, -1)
-        feature = feature.view(batch_size, 2, -1)
+        # feature = feature.view(batch_size, 2, -1)
         # print(feature.shape)
 
         x = feature
