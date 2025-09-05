@@ -47,14 +47,14 @@ class WaveModeling(nn.Module):
         self.tfc_w = nn.Conv2d(2 * dim, dim, (7, 1), stride=1, padding=(7 // 2, 0), groups=dim, bias=False)
         self.proj_drop = nn.Dropout(proj_drop)
         self.mode = mode
-        # self.w1 = nn.Conv2d(6, 6, 1, 1)
-        # self.w2 = nn.Conv2d(6, 6, 1, 1)
+        self.w1 = nn.Conv2d(6, 6, 1, 1)
+        self.w2 = nn.Conv2d(6, 6, 1, 1)
         # self.w1 = nn.Conv2d(4, 4, 1, 1)
         # self.w2 = nn.Conv2d(4, 4, 1, 1)
         # self.w1 = nn.Conv2d(3, 3, 1, 1)
         # self.w2 = nn.Conv2d(3, 3, 1, 1)
-        self.w1 = nn.Conv2d(2, 2, 1, 1)
-        self.w2 = nn.Conv2d(2, 2, 1, 1)
+        # self.w1 = nn.Conv2d(2, 2, 1, 1)
+        # self.w2 = nn.Conv2d(2, 2, 1, 1)
         if mode == 'fc':
             self.theta_R_conv = nn.Sequential(nn.Conv2d(dim, dim, 1, 1, bias=True), nn.BatchNorm2d(dim), nn.ReLU())
             self.theta_I_conv = nn.Sequential(nn.Conv2d(dim, dim, 1, 1, bias=True), nn.BatchNorm2d(dim), nn.ReLU())
@@ -88,4 +88,5 @@ class WaveModeling(nn.Module):
         x = torch.cat([h * a[0], w * a[1]],dim=1)
         # print(x.shape)
         x = self.proj_drop(x)
+
         return x
